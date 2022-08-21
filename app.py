@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as stc
 from streamlit_option_menu import option_menu
-from database import *
+from database import drop_create_table, create_table, insert_data, show_data, retrieve_task, delete_data, view_tasks, update_task
 import pandas as pd
 import numpy as np
 from datetime import date
