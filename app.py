@@ -19,13 +19,12 @@ def main():
 
     with st.sidebar:
       options = option_menu(menu_title="MENÜ", options=["Yarat (CREATE)", "Oku (READ)", "Güncelle (UPDATE)", "Sil (DELETE)"],
-                            icons=['calendar-plus', 'book',
-                                   'wrench', 'x-square'],
+                            icons=['calendar-plus', 'book', 'wrench', 'x-square'],
                             menu_icon="house", default_index=0, orientation="vertical",
                            styles={
-          "container": {"padding": "5!important", "background-color": "#d9d7d7"},
-          "icon": {"color": "black", "font-size": "25px"},
-          "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", "--hover-color": "#9c9a9a"},
+          "container": {"padding": "5!important", "background-color": "#a3a3a3"},
+          "icon": {"color": "white", "font-size": "25px"},
+          "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", "--hover-color": "#b6b6b6"},
           "nav-link-selected": {"background-color": "#831302"},
         }
         )
