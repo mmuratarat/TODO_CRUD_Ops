@@ -6,46 +6,50 @@ import pandas as pd
 import numpy as np
 from datetime import date
 import sqlite3
+from sqlite3 import Connection
 
-db_file = "myDatabase_TODO.db"
-connection = sqlite3.connect(db_file, check_same_thread = False)
-cursor = connection.cursor()
+@st.cache(hash_funcs={Connection: id})
+def get_connection(path: str):
+    """Put the connection in cache to reuse if path does not change between Streamlit reruns.
+    NB : https://stackoverflow.com/questions/48218065/programmingerror-sqlite-objects-created-in-a-thread-can-only-be-used-in-that-sa
+    """
+    return sqlite3.connect(path, check_same_thread=False)
 
-def drop_create_table():
-    cursor.execute('DROP TABLE IF EXISTS TODO_TABLE;')
-    cursor.execute('CREATE TABLE IF NOT EXISTS TODO_TABLE(task_ TEXT NOT NULL UNIQUE, status_ NOT NULL, date_ DATE NOT NULL, PRIMARY KEY (task_))')
+def drop_create_table(conn: Connection):
+    conn.execute('DROP TABLE IF EXISTS TODO_TABLE;')
+    conn.execute('CREATE TABLE IF NOT EXISTS TODO_TABLE(task_ TEXT NOT NULL UNIQUE, status_ NOT NULL, date_ DATE NOT NULL, PRIMARY KEY (task_))')
+    conn.commit()
 
-def create_table():
+def create_table(conn: Connection):
     # cursor.execute('DROP TABLE IF EXISTS TODO_TABLE;')
-    cursor.execute('CREATE TABLE IF NOT EXISTS TODO_TABLE(task_ TEXT NOT NULL UNIQUE, status_ NOT NULL, date_ DATE NOT NULL, PRIMARY KEY (task_))')
+    conn.execute('CREATE TABLE IF NOT EXISTS TODO_TABLE(task_ TEXT NOT NULL UNIQUE, status_ NOT NULL, date_ DATE NOT NULL, PRIMARY KEY (task_))')
+    conn.commit()
     
-def insert_data(task_, status_, date_):
-    cursor.execute("INSERT INTO TODO_TABLE(task_, status_, date_) VALUES (?, ?, ?)", (task_, status_, date_)) # Always use the format YYYY-MM-DD to insert the date into database.
-    connection.commit()
+def insert_data(task_: str, status_: str, date_: str, conn: Connection):
+    conn.execute("INSERT INTO TODO_TABLE(task_, status_, date_) VALUES (?, ?, ?)", (task_, status_, date_)) # Always use the format YYYY-MM-DD to insert the date into database.
+    conn.commit()
     
-def show_data():
-    cursor.execute('SELECT * FROM TODO_TABLE')
-    records = cursor.fetchall()
+def show_data(conn: Connection):
+    records = pd.read_sql(sql = 'SELECT * FROM TODO_TABLE', con=conn)
     return records
 
-def retrieve_task(task_):
-    cursor.execute('SELECT * FROM TODO_TABLE WHERE task_ = "{}"'.format(task_))
-    records = cursor.fetchall()
+def retrieve_task(task_, conn: Connection):
+    query = f'SELECT * FROM TODO_TABLE WHERE task_ = "{task_}"'
+    records = pd.read_sql(sql = query, con=conn)
     return records
 
-def delete_data(task_):
-    cursor.execute('DELETE FROM TODO_TABLE WHERE task_ = "{}"'.format(task_))
-    connection.commit()
+def delete_data(task_, conn: Connection):
+    conn.execute('DELETE FROM TODO_TABLE WHERE task_ = "{}"'.format(task_))
+    conn.commit()
     
-def view_tasks():
-    cursor.execute('SELECT DISTINCT task_ FROM TODO_TABLE')
-    records = cursor.fetchall()
+def view_tasks(conn: Connection):
+    records = pd.read_sql(sql = "SELECT DISTINCT task_ FROM TODO_TABLE", con=conn)
     return records
 
-def update_task(new_task_, new_status_, new_date_, task_, status_, date_):
-    cursor.execute('UPDATE TODO_TABLE SET task_ = ?, status_ = ?, date_ = ?  WHERE task_ = ? and status_ = ? and date_ = ?', (new_task_, new_status_, new_date_, task_, status_, date_))
-    connection.commit()
-    records = cursor.fetchall()
+def update_task(new_task_, new_status_, new_date_, task_, status_, date_, conn: Connection):
+    conn.execute('UPDATE TODO_TABLE SET task_ = ?, status_ = ?, date_ = ?  WHERE task_ = ? and status_ = ? and date_ = ?', (new_task_, new_status_, new_date_, task_, status_, date_))
+    conn.commit()
+    records = conn.fetchall()
     return records
 
 st.set_page_config(page_title="Takvim Uygulaması")
@@ -57,8 +61,6 @@ def main():
 </div><br>"""
     st.markdown(html_temp, unsafe_allow_html=True)
     st.markdown('<style>h1{color: red;}</style>', unsafe_allow_html=True)
-
-    
 
     with st.sidebar:
       options = option_menu(menu_title="MENÜ", options=["Yarat (CREATE)", "Oku (READ)", "Güncelle (UPDATE)", "Sil (DELETE)"],
@@ -73,7 +75,9 @@ def main():
         }
         )
 
-    create_table()
+    db_file = "myDatabase_TODO.db"
+    conn = get_connection(db_file)
+    create_table(conn)
     
     if options == 'Yarat (CREATE)':
         st.subheader("Görevlerinizi Ekleyiniz:")
@@ -89,15 +93,15 @@ def main():
         if st.button("Görevi Ekleyin!"):
             if (task_ == ''):
                 st.warning('Önce görevinizi giriniz!')
-            elif (len(retrieve_task(task_=task_))):
+            elif (len(retrieve_task(task_=task_, conn=conn))):
                 st.error('Görev zaten mevcut!')
             else:
-                insert_data(task_, status_, date_)
+                insert_data(task_, status_, date_, conn=conn)
                 st.success("Göreviniz başarıyla eklendi: '{}'".format(task_))
 
     if options == 'Oku (READ)':
-        data = show_data()
-        data_df = pd.DataFrame(data, columns=["Görev", "Durum", "Bitiş Tarihi"])
+        data_df = show_data(conn=conn)
+        data_df.columns = ["Görev", "Durum", "Bitiş Tarihi"]
 
         with st.expander("Bütün görevleri inceleyiniz:"):
             st.dataframe(data_df)
@@ -109,14 +113,15 @@ def main():
 
     if options == 'Güncelle (UPDATE)':
         st.subheader("Görevleri Düzenleyiniz / Güncelleyiniz:")
-        data = show_data()
-        data_df = pd.DataFrame(data, columns=["Görev", "Durum", "Bitiş Tarihi"])
+        data_df = show_data(conn=conn)
+        data_df.columns = ["Görev", "Durum", "Bitiş Tarihi"]
+
         with st.expander("Güncel görevleriniz:"):
             st.dataframe(data_df)
 
-        list_of_tasks = [i[0] for i in view_tasks()]
+        list_of_tasks = list(view_tasks(conn = conn)['task_'])
         selected_task = st.selectbox("Görev", list_of_tasks)
-        task_result = retrieve_task(selected_task)
+        task_result = retrieve_task(selected_task, conn=conn)
 
         if task_result:
             task_name, task_status, task_to_date = task_result[0]
@@ -140,7 +145,7 @@ def main():
                 if (new_task == ''):
                     st.error('Önce görevinizi giriniz!')
 
-                elif (len(retrieve_task(new_task)) and task_status == new_task_status and task_to_date == new_task_to_date):
+                elif (len(retrieve_task(new_task,)) and task_status == new_task_status and task_to_date == new_task_to_date):
                     st.error('Görev zaten mevcut!')
 
                 else:
@@ -149,35 +154,35 @@ def main():
                     st.success("Güncellenmiş Görev: '{}'".format(task_name))
 
                     with st.expander("Güncellenmiş görevleri gör:"):
-                        result = show_data()
+                        result = show_data(conn=conn)
                         clean_df = pd.DataFrame(
                             result, columns=["Görev", "Durum", "Bitiş Tarihi"])
                         st.dataframe(clean_df)
 
     if options == 'Sil (DELETE)':
         st.subheader("Görevleri Silebilirsiniz!")
-        data = show_data()
-        data_df = pd.DataFrame(data, columns=["Görev", "Durum", "Bitiş Tarihi"])
+        data_df = show_data(conn=conn)
+        data_df.columns = ["Görev", "Durum", "Bitiş Tarihi"]
+
         with st.expander("Güncel görevleriniz:"):
             st.dataframe(data_df)
 
-        list_of_tasks = [i[0] for i in view_tasks()]
+        list_of_tasks = list(view_tasks(conn = conn)['task_'])
         list_of_tasks.append('Bütün görevleri sil')
         selected_task = st.selectbox("Görev", list_of_tasks)
 
         if st.button("Delete"):
             if selected_task == 'Bütün görevleri sil':
-                drop_create_table()
+                drop_create_table(conn=conn)
                 st.success("Bütün görevler başarı ile silindi!")
             else:
-                delete_data(selected_task)
+                delete_data(selected_task, conn = conn)
                 st.success("Deleted Task: '{}'".format(selected_task))
 
             with st.expander("Güncellenmiş görevleri gör:"):
-                result = show_data()
-                clean_df = pd.DataFrame(
-                    result, columns=["Görev", "Durum", "Bitiş Tarihi"])
-                st.dataframe(clean_df)
+                result = show_data(conn=conn)
+                result.columns = ["Görev", "Durum", "Bitiş Tarihi"]
+                st.dataframe(result)
 
     # Hide the footer
     hide_st_style = """
