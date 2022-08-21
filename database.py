@@ -1,7 +1,7 @@
 import sqlite3
 
 db_file = "myDatabase_TODO.db"
-connection = sqlite3.connect(db_file)
+connection = sqlite3.connect(db_file, check_same_thread = False)
 cursor = connection.cursor()
 
 def drop_create_table():
