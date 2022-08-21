@@ -22,7 +22,7 @@ with st.sidebar:
                          icons=['calendar-plus', 'book', 'wrench', 'x-square'],
                          menu_icon="house", default_index=0, orientation="vertical",
                          styles={
-        "container": {"padding": "5!important", "background-color": "#b3b1b1"},
+        "container": {"padding": "5!important", "background-color": "#d9d7d7"},
         "icon": {"color": "black", "font-size": "25px"}, 
         "nav-link": {"font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": "#9c9a9a"},
         "nav-link-selected": {"background-color": "#831302"},
